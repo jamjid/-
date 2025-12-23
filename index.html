@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>图片字幕生成器</title>
+  <style>
+    :root{--bg:#0b0e12;--panel:#151922;--text:#e6e8ea;--muted:#9aa0a6;--accent:#4f8cff;--border:#2a3140}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .wrap{max-width:1000px;margin:0 auto;padding:24px}
+    .title{font-size:20px;font-weight:600;margin-bottom:16px}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+    .grid{display:grid;grid-template-columns:1fr;gap:16px}
+    .row{display:flex;gap:12px;align-items:center}
+    input[type="file"]{color:var(--text)}
+    textarea{width:100%;min-height:180px;background:#0f1320;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:14px;resize:vertical}
+    .btn{appearance:none;border:1px solid var(--border);background:var(--accent);color:#fff;border-radius:8px;padding:10px 16px;font-weight:600;cursor:pointer}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .controls{display:flex;gap:12px;flex-wrap:wrap}
+    .control{display:flex;gap:8px;align-items:center;background:#0f1320;border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+    .control input[type="range"]{width:160px}
+    .muted{color:var(--muted);font-size:12px}
+    .results{margin-top:20px;display:grid;grid-template-columns:1fr;gap:16px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px}
+    .card .actions{display:flex;gap:8px;margin-top:8px}
+    .card img{max-width:100%;height:auto;border-radius:8px;border:1px solid var(--border);background:#000}
+    .preview{margin-top:12px;display:flex;gap:12px;align-items:flex-start}
+    .preview .orig{flex:0 0 auto;max-width:240px}
+    .preview .orig img{max-width:100%;height:auto;border-radius:8px;border:1px solid var(--border);background:#000}
+    @media (min-width:900px){
+      .grid{grid-template-columns:320px 1fr}
+      .results{grid-template-columns:1fr 1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">图片字幕生成器</div>
+    <div class="grid">
+      <div class="panel">
+        <div class="row">
+          <input id="imageInput" type="file" accept="image/*">
+        </div>
+        <div class="preview" id="previewBox" style="display:none">
+          <div class="orig">
+            <div class="muted">原始图片预览</div>
+            <img id="origPreview" alt="预览">
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <textarea id="captionInput" placeholder="在此输入多行字幕文本，按行生成多张图片"></textarea>
+          <div class="muted" style="margin-top:6px">生成后，所有输入行会一起叠加在图片底部字幕区，居中显示，并可选择分隔线</div>
+        </div>
+        <div class="controls" style="margin-top:12px">
+          <div class="control"><span class="muted">字体大小</span><input id="fontSize" type="range" min="18" max="72" value="36"><span id="fontSizeVal" class="muted">36</span></div>
+          <div class="control"><span class="muted">字幕区高度</span><input id="barPercent" type="range" min="12" max="30" value="18"><span id="barPercentVal" class="muted">18%</span></div>
+          <div class="control"><span class="muted">边距</span><input id="padding" type="range" min="6" max="28" value="12"><span id="paddingVal" class="muted">12</span></div>
+          <div class="control"><span class="muted">行间距</span><input id="lineGap" type="range" min="6" max="48" value="12"><span id="lineGapVal" class="muted">12</span></div>
+          <div class="control"><span class="muted">分隔线粗细</span><input id="dividerThick" type="range" min="0" max="6" value="2"><span id="dividerThickVal" class="muted">2</span></div>
+          <label class="control"><input id="dividerShow" type="checkbox" checked><span class="muted">显示分隔线</span></label>
+          <div class="control"><span class="muted">背景圆角</span><input id="boxRadius" type="range" min="0" max="32" value="12"><span id="boxRadiusVal" class="muted">12</span></div>
+          <div class="control"><span class="muted">背景模糊</span><input id="boxBlur" type="range" min="0" max="12" value="6"><span id="boxBlurVal" class="muted">6</span></div>
+          <div class="control"><span class="muted">暗化强度</span><input id="boxShade" type="range" min="0" max="80" value="40"><span id="boxShadeVal" class="muted">40%</span></div>
+          <label class="control"><input id="fixedSegEnable" type="checkbox"><span class="muted">固定每条高度</span></label>
+          <div class="control"><span class="muted">每条高度</span><input id="fixedSegHeight" type="range" min="40" max="300" value="100"><span id="fixedSegHeightVal" class="muted">100px</span></div>
+          <div class="control"><span class="muted">文字颜色</span><input id="textColor" type="color" value="#ffffff"></div>
+          <div class="control"><span class="muted">轮廓颜色</span><input id="strokeColor" type="color" value="#000000"></div>
+          <div class="control"><span class="muted">输出宽度</span><input id="outWidth" type="number" min="300" max="2000" step="10" value="900"></div>
+          <div class="control"><span class="muted">水印文本</span><input id="wmText" type="text" value="南瓜博士" style="width:120px"></div>
+          <div class="control"><span class="muted">水印大小</span><input id="wmSize" type="range" min="16" max="64" value="32"><span id="wmSizeVal" class="muted">32</span></div>
+          <div class="control"><span class="muted">水印颜色</span><input id="wmColor" type="color" value="#ffffff"></div>
+          <div class="control"><span class="muted">水印透明</span><input id="wmOpacity" type="range" min="10" max="100" value="60"><span id="wmOpacityVal" class="muted">60%</span></div>
+        </div>
+        <div style="margin-top:14px">
+          <button id="generateBtn" class="btn" type="button" disabled>生成</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="title" style="font-size:16px;margin:0 0 8px">生成结果</div>
+        <div id="results" class="results"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const imageInput=document.getElementById("imageInput");
+    const origPreview=document.getElementById("origPreview");
+    const previewBox=document.getElementById("previewBox");
+    const captionInput=document.getElementById("captionInput");
+    const generateBtn=document.getElementById("generateBtn");
+    const results=document.getElementById("results");
+    const fontSizeEl=document.getElementById("fontSize");
+    const fontSizeVal=document.getElementById("fontSizeVal");
+    const barPercentEl=document.getElementById("barPercent");
+    const barPercentVal=document.getElementById("barPercentVal");
+    const paddingEl=document.getElementById("padding");
+    const paddingVal=document.getElementById("paddingVal");
+    const lineGapEl=document.getElementById("lineGap");
+    const lineGapVal=document.getElementById("lineGapVal");
+    const dividerThickEl=document.getElementById("dividerThick");
+    const dividerThickVal=document.getElementById("dividerThickVal");
+    const dividerShowEl=document.getElementById("dividerShow");
+    const boxRadiusEl=document.getElementById("boxRadius");
+    const boxRadiusVal=document.getElementById("boxRadiusVal");
+    const boxBlurEl=document.getElementById("boxBlur");
+    const boxBlurVal=document.getElementById("boxBlurVal");
+    const boxShadeEl=document.getElementById("boxShade");
+    const boxShadeVal=document.getElementById("boxShadeVal");
+    const fixedSegEnableEl=document.getElementById("fixedSegEnable");
+    const fixedSegHeightEl=document.getElementById("fixedSegHeight");
+    const fixedSegHeightVal=document.getElementById("fixedSegHeightVal");
+    const textColorEl=document.getElementById("textColor");
+    const strokeColorEl=document.getElementById("strokeColor");
+    const outWidthEl=document.getElementById("outWidth");
+    const wmTextEl=document.getElementById("wmText");
+    const wmSizeEl=document.getElementById("wmSize");
+    const wmSizeVal=document.getElementById("wmSizeVal");
+    const wmColorEl=document.getElementById("wmColor");
+    const wmOpacityEl=document.getElementById("wmOpacity");
+    const wmOpacityVal=document.getElementById("wmOpacityVal");
+    let loadedImage=null;
+    function updateRangeLabels(){fontSizeVal.textContent=fontSizeEl.value;barPercentVal.textContent=barPercentEl.value+"%";paddingVal.textContent=paddingEl.value;lineGapVal.textContent=lineGapEl.value;dividerThickVal.textContent=dividerThickEl.value;boxRadiusVal.textContent=boxRadiusEl.value;boxBlurVal.textContent=boxBlurEl.value;boxShadeVal.textContent=boxShadeEl.value+"%";fixedSegHeightVal.textContent=fixedSegHeightEl.value+"px";wmSizeVal.textContent=wmSizeEl.value;wmOpacityVal.textContent=wmOpacityEl.value+"%"}
+    updateRangeLabels();
+    fontSizeEl.addEventListener("input",updateRangeLabels);
+    barPercentEl.addEventListener("input",updateRangeLabels);
+    paddingEl.addEventListener("input",updateRangeLabels);
+    lineGapEl.addEventListener("input",updateRangeLabels);
+    dividerThickEl.addEventListener("input",updateRangeLabels);
+    dividerShowEl.addEventListener("change",updateRangeLabels);
+    boxRadiusEl.addEventListener("input",updateRangeLabels);
+    boxBlurEl.addEventListener("input",updateRangeLabels);
+    boxShadeEl.addEventListener("input",updateRangeLabels);
+    fixedSegEnableEl.addEventListener("change",updateRangeLabels);
+    fixedSegHeightEl.addEventListener("input",updateRangeLabels);
+    wmSizeEl.addEventListener("input",updateRangeLabels);
+    wmOpacityEl.addEventListener("input",updateRangeLabels);
+    imageInput.addEventListener("change",async(e)=>{const f=e.target.files&&e.target.files[0];if(!f){loadedImage=null;origPreview.removeAttribute("src");previewBox.style.display="none";generateBtn.disabled=true;return}const url=URL.createObjectURL(f);const img=new Image();img.onload=()=>{loadedImage=img;origPreview.src=url;previewBox.style.display="flex";generateBtn.disabled=false};img.onerror=()=>{generateBtn.disabled=true};img.src=url});
+    function normalizeLines(text){return text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean)}
+    function fitFontForLines(ctx,lines,maxWidth,baseSize,family){let size=baseSize;function anyTooWide(){ctx.font=`${size}px ${family}`;for(const t of lines){if(ctx.measureText(t).width>maxWidth)return true}return false}while(anyTooWide()&&size>18){size-=2}ctx.font=`${size}px ${family}`;return size}
+    function fitFont(ctx,text,maxWidth,baseSize,family){let size=baseSize;ctx.font=`${size}px ${family}`;let width=ctx.measureText(text).width;while(width>maxWidth&&size>18){size-=2;ctx.font=`${size}px ${family}`;width=ctx.measureText(text).width}return size}
+    function roundRectPath(ctx,x,y,w,h,r){const rr=Math.min(r,Math.min(w,h)/2);ctx.beginPath();ctx.moveTo(x+rr,y);ctx.arcTo(x+w,y,x+w,y+h,rr);ctx.arcTo(x+w,y+h,x,y+h,rr);ctx.arcTo(x,y+h,x,y,rr);ctx.arcTo(x,y,x+w,y,rr);ctx.closePath()}
+    function drawFeatherShade(ctx,x,y,w,h,shade){const a=Math.min(0.9,Math.max(0,shade/100));if(a<=0)return;const centerA=a*0.55;const sideA=a*0.35;const gV=ctx.createLinearGradient(0,y,0,y+h);gV.addColorStop(0,`rgba(0,0,0,0)`);gV.addColorStop(0.5,`rgba(0,0,0,${centerA})`);gV.addColorStop(1,`rgba(0,0,0,0)`);ctx.fillStyle=gV;ctx.fillRect(x,y,w,h);const gH=ctx.createLinearGradient(x,0,x+w,0);gH.addColorStop(0,`rgba(0,0,0,0)`);gH.addColorStop(0.5,`rgba(0,0,0,${sideA})`);gH.addColorStop(1,`rgba(0,0,0,0)`);ctx.fillStyle=gH;ctx.fillRect(x,y,w,h);const uniformA=a*0.15;ctx.fillStyle=`rgba(0,0,0,${uniformA})`;ctx.fillRect(x,y,w,h)}
+    function drawStripBackground(ctx,img,yTop,segH,w,blur,shade){const srcY=Math.max(0,img.height-segH);ctx.save();ctx.filter=blur>0?`blur(${blur}px)`:"none";ctx.drawImage(img,0,srcY,img.width,segH,0,yTop,w,segH);ctx.filter="none";drawFeatherShade(ctx,0,yTop,w,segH,Math.round(shade*0.6));ctx.restore()}
+    function drawSampledBackground(ctx,img,srcX,srcY,srcW,srcH,dstX,dstY,dstW,dstH,r,blur,shade){ctx.save();roundRectPath(ctx,dstX,dstY,dstW,dstH,r);ctx.clip();ctx.filter=blur>0?`blur(${blur}px)`:"none";ctx.drawImage(img,srcX,srcY,srcW,srcH,dstX,dstY,dstW,dstH);ctx.filter="none";drawFeatherShade(ctx,dstX,dstY,dstW,dstH,shade);ctx.restore()}
+    function makeCanvasCombined(img,lines,opt){const outW=Math.max(300,opt.outWidth||img.width);const scale=outW/img.width;const percent=Math.max(12,Math.min(30,opt.barPercent));const minSegOut=Math.round(img.height*percent/100*scale);const pad=opt.padding;const baseSize=opt.fontSize;const family="system-ui, Arial";const c=document.createElement("canvas");const ctx=c.getContext("2d");c.width=outW;const maxTextW=outW-pad*2;const size=fitFontForLines(ctx,lines,maxTextW,baseSize,family);const vpad=Math.max(6,Math.round(size*0.25));let segH=Math.max(minSegOut,size+vpad*2);if(opt.fixedSegEnable){segH=Math.max(40,opt.fixedSegHeight)}const totalDiv=(opt.showDivider&&opt.dividerThickness>0)?opt.dividerThickness*(lines.length-1):0;const origScaledH=Math.round(img.height*scale);const appendH=segH*lines.length+totalDiv;c.height=origScaledH+appendH;ctx.imageSmoothingEnabled=true;ctx.drawImage(img,0,0,img.width,img.height,0,0,outW,origScaledH);if(opt.wmText&&opt.wmText.trim()){ctx.save();ctx.globalAlpha=Math.min(1,Math.max(0,opt.wmOpacity/100));ctx.fillStyle=opt.wmColor||"#ffffff";ctx.textAlign="right";ctx.textBaseline="top";ctx.font=`${opt.wmSize||32}px ${family}`;const p=16;ctx.fillText(opt.wmText.trim(),outW-p,p);ctx.restore()}let yTop=origScaledH;ctx.textAlign="center";ctx.textBaseline="middle";ctx.font=`${size}px ${family}`;ctx.strokeStyle=opt.strokeColor||"rgba(0,0,0,0.85)";ctx.lineWidth=Math.max(2,Math.round(size/12));for(let i=0;i<lines.length;i++){const srcH=Math.max(1,Math.round(segH/scale));const srcX=0;const srcY=Math.max(0,img.height-srcH);const dstX=0;const dstY=yTop;const dstW=outW;const dstH=segH;drawSampledBackground(ctx,img,srcX,srcY,img.width,srcH,dstX,dstY,dstW,dstH,0,opt.boxBlur,opt.boxShade);const centerX=outW/2;const cy=dstY+segH/2;ctx.fillStyle=opt.textColor||"#ffffff";ctx.strokeText(lines[i],centerX,cy);ctx.fillText(lines[i],centerX,cy);yTop+=segH;if(opt.showDivider&&opt.dividerThickness>0&&i<lines.length-1){ctx.fillStyle="rgba(255,255,255,0.7)";ctx.fillRect(pad,yTop,outW-pad*2,opt.dividerThickness);yTop+=opt.dividerThickness}}return c}
+    function makeCanvas(img,text,opt){const w=img.width;const percent=Math.max(12,Math.min(30,opt.barPercent));const barH=Math.round(img.height*percent/100);const pad=opt.padding;const baseSize=opt.fontSize;const family="system-ui, Arial";const h=img.height+barH;const c=document.createElement("canvas");c.width=w;c.height=h;const ctx=c.getContext("2d");ctx.imageSmoothingEnabled=true;ctx.drawImage(img,0,0,w,img.height);const overlayH=Math.max(barH,baseSize*2);const barY=img.height-overlayH;ctx.fillStyle="rgba(0,0,0,0.45)";ctx.fillRect(0,barY,w,overlayH);ctx.fillStyle="rgba(0,0,0,0.7)";ctx.fillRect(0,img.height,w,overlayH);const maxTextW=w-pad*2;const size=fitFont(ctx,text,maxTextW,baseSize,family);ctx.font=`${size}px ${family}`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillStyle="#ffffff";ctx.strokeStyle="rgba(0,0,0,0.85)";ctx.lineWidth=Math.max(2,Math.round(size/12));const centerX=w/2;const upperY=barY+overlayH/2;const lowerY=img.height+overlayH/2;ctx.strokeText(text,centerX,upperY);ctx.fillText(text,centerX,upperY);ctx.strokeText(text,centerX,lowerY);ctx.fillText(text,centerX,lowerY);return c}
+    function cardForCanvas(c){const data=c.toDataURL("image/png");const wrap=document.createElement("div");wrap.className="card";const img=document.createElement("img");img.src=data;const acts=document.createElement("div");acts.className="actions";const a=document.createElement("a");a.href=data;a.download=`subtitle_${Date.now()}.png`;a.className="btn";a.textContent="下载PNG";acts.appendChild(a);wrap.appendChild(img);wrap.appendChild(acts);return wrap}
+    generateBtn.addEventListener("click",()=>{if(!loadedImage)return;const lines=normalizeLines(captionInput.value);results.innerHTML="";if(lines.length===0)return;const opt={fontSize:parseInt(fontSizeEl.value,10),barPercent:parseInt(barPercentEl.value,10),padding:parseInt(paddingEl.value,10),lineGap:parseInt(lineGapEl.value,10),dividerThickness:parseInt(dividerThickEl.value,10),showDivider:!!dividerShowEl.checked,boxRadius:parseInt(boxRadiusEl.value,10),boxBlur:parseInt(boxBlurEl.value,10),boxShade:parseInt(boxShadeEl.value,10),fixedSegEnable:!!fixedSegEnableEl.checked,fixedSegHeight:parseInt(fixedSegHeightEl.value,10),textColor:textColorEl.value,strokeColor:strokeColorEl.value,outWidth:parseInt(outWidthEl.value,10),wmText:wmTextEl.value,wmSize:parseInt(wmSizeEl.value,10),wmColor:wmColorEl.value,wmOpacity:parseInt(wmOpacityEl.value,10)};const c=makeCanvasCombined(loadedImage,lines,opt);results.appendChild(cardForCanvas(c))});
+  </script>
+</body>
+</html>
