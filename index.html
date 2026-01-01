@@ -26,9 +26,9 @@
     .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px}
     .card .actions{display:flex;gap:8px;margin-top:8px}
     .card img{max-width:100%;height:auto;border-radius:8px;border:1px solid var(--border);background:#000}
-    .preview{margin-top:12px;display:flex;gap:12px;align-items:flex-start}
-    .preview .orig{flex:0 0 auto;max-width:240px}
-    .preview .orig img{max-width:100%;height:auto;border-radius:8px;border:1px solid var(--border);background:#000}
+    .img-item{display:grid;grid-template-columns:120px 1fr;gap:12px;padding:12px;background:#1a1f2b;border:1px solid var(--border);border-radius:8px;align-items:start}
+    .img-item img{width:100%;height:auto;border-radius:6px;border:1px solid var(--border)}
+    .img-item textarea{min-height:80px}
     @media (min-width:900px){
       .grid{grid-template-columns:320px 1fr}
       .results{grid-template-columns:1fr 1fr}
@@ -41,18 +41,10 @@
     <div class="grid">
       <div class="panel">
         <div class="row">
-          <input id="imageInput" type="file" accept="image/*">
+          <input id="imageInput" type="file" accept="image/*" multiple>
         </div>
-        <div class="preview" id="previewBox" style="display:none">
-          <div class="orig">
-            <div class="muted">原始图片预览</div>
-            <img id="origPreview" alt="预览">
-          </div>
-        </div>
-        <div style="margin-top:12px">
-          <textarea id="captionInput" placeholder="在此输入多行字幕文本，按行生成多张图片"></textarea>
-          <div class="muted" style="margin-top:6px">生成后，所有输入行会一起叠加在图片底部字幕区，居中显示，并可选择分隔线</div>
-        </div>
+        <div id="imageList" style="display:grid;gap:12px;margin-top:16px"></div>
+        <div class="muted" style="margin-top:12px">上传多张图片（建议不超过3张），每张图分别输入字幕。生成时将按顺序拼接所有内容。</div>
         <div class="controls" style="margin-top:12px">
           <div class="control"><span class="muted">字体大小</span><input id="fontSize" type="range" min="18" max="72" value="36"><span id="fontSizeVal" class="muted">36</span></div>
           <div class="control"><span class="muted">字幕区高度</span><input id="barPercent" type="range" min="12" max="30" value="18"><span id="barPercentVal" class="muted">18%</span></div>
@@ -85,9 +77,7 @@
   </div>
   <script>
     const imageInput=document.getElementById("imageInput");
-    const origPreview=document.getElementById("origPreview");
-    const previewBox=document.getElementById("previewBox");
-    const captionInput=document.getElementById("captionInput");
+    const imageList=document.getElementById("imageList");
     const generateBtn=document.getElementById("generateBtn");
     const results=document.getElementById("results");
     const fontSizeEl=document.getElementById("fontSize");
@@ -119,7 +109,7 @@
     const wmColorEl=document.getElementById("wmColor");
     const wmOpacityEl=document.getElementById("wmOpacity");
     const wmOpacityVal=document.getElementById("wmOpacityVal");
-    let loadedImage=null;
+    let loadedFiles=[];
     function updateRangeLabels(){fontSizeVal.textContent=fontSizeEl.value;barPercentVal.textContent=barPercentEl.value+"%";paddingVal.textContent=paddingEl.value;lineGapVal.textContent=lineGapEl.value;dividerThickVal.textContent=dividerThickEl.value;boxRadiusVal.textContent=boxRadiusEl.value;boxBlurVal.textContent=boxBlurEl.value;boxShadeVal.textContent=boxShadeEl.value+"%";fixedSegHeightVal.textContent=fixedSegHeightEl.value+"px";wmSizeVal.textContent=wmSizeEl.value;wmOpacityVal.textContent=wmOpacityEl.value+"%"}
     updateRangeLabels();
     fontSizeEl.addEventListener("input",updateRangeLabels);
@@ -135,7 +125,27 @@
     fixedSegHeightEl.addEventListener("input",updateRangeLabels);
     wmSizeEl.addEventListener("input",updateRangeLabels);
     wmOpacityEl.addEventListener("input",updateRangeLabels);
-    imageInput.addEventListener("change",async(e)=>{const f=e.target.files&&e.target.files[0];if(!f){loadedImage=null;origPreview.removeAttribute("src");previewBox.style.display="none";generateBtn.disabled=true;return}const url=URL.createObjectURL(f);const img=new Image();img.onload=()=>{loadedImage=img;origPreview.src=url;previewBox.style.display="flex";generateBtn.disabled=false};img.onerror=()=>{generateBtn.disabled=true};img.src=url});
+    imageInput.addEventListener("change",async(e)=>{
+      const files=Array.from(e.target.files||[]);
+      if(files.length===0){loadedFiles=[];imageList.innerHTML="";generateBtn.disabled=true;return}
+      loadedFiles=[];
+      imageList.innerHTML="";
+      generateBtn.disabled=false;
+      for(const f of files){
+        const url=URL.createObjectURL(f);
+        const img=new Image();
+        await new Promise((resolve)=>{
+          img.onload=resolve;
+          img.onerror=resolve;
+          img.src=url;
+        });
+        loadedFiles.push({file:f,img:img,url:url});
+        const item=document.createElement("div");
+        item.className="img-item";
+        item.innerHTML=`<img src="${url}"><textarea placeholder="输入字幕，每行一条..."></textarea>`;
+        imageList.appendChild(item);
+      }
+    });
     function normalizeLines(text){return text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean)}
     function fitFontForLines(ctx,lines,maxWidth,baseSize,family){let size=baseSize;function anyTooWide(){ctx.font=`${size}px ${family}`;for(const t of lines){if(ctx.measureText(t).width>maxWidth)return true}return false}while(anyTooWide()&&size>18){size-=2}ctx.font=`${size}px ${family}`;return size}
     function fitFont(ctx,text,maxWidth,baseSize,family){let size=baseSize;ctx.font=`${size}px ${family}`;let width=ctx.measureText(text).width;while(width>maxWidth&&size>18){size-=2;ctx.font=`${size}px ${family}`;width=ctx.measureText(text).width}return size}
@@ -146,7 +156,54 @@
     function makeCanvasCombined(img,lines,opt){const outW=Math.max(300,opt.outWidth||img.width);const scale=outW/img.width;const percent=Math.max(12,Math.min(30,opt.barPercent));const minSegOut=Math.round(img.height*percent/100*scale);const pad=opt.padding;const baseSize=opt.fontSize;const family="system-ui, Arial";const c=document.createElement("canvas");const ctx=c.getContext("2d");c.width=outW;const maxTextW=outW-pad*2;const size=fitFontForLines(ctx,lines,maxTextW,baseSize,family);const vpad=Math.max(6,Math.round(size*0.25));let segH=Math.max(minSegOut,size+vpad*2);if(opt.fixedSegEnable){segH=Math.max(40,opt.fixedSegHeight)}const totalDiv=(opt.showDivider&&opt.dividerThickness>0)?opt.dividerThickness*(lines.length-1):0;const origScaledH=Math.round(img.height*scale);const appendH=segH*lines.length+totalDiv;c.height=origScaledH+appendH;ctx.imageSmoothingEnabled=true;ctx.drawImage(img,0,0,img.width,img.height,0,0,outW,origScaledH);if(opt.wmText&&opt.wmText.trim()){ctx.save();ctx.globalAlpha=Math.min(1,Math.max(0,opt.wmOpacity/100));ctx.fillStyle=opt.wmColor||"#ffffff";ctx.textAlign="right";ctx.textBaseline="top";ctx.font=`${opt.wmSize||32}px ${family}`;const p=16;ctx.fillText(opt.wmText.trim(),outW-p,p);ctx.restore()}let yTop=origScaledH;ctx.textAlign="center";ctx.textBaseline="middle";ctx.font=`${size}px ${family}`;ctx.strokeStyle=opt.strokeColor||"rgba(0,0,0,0.85)";ctx.lineWidth=Math.max(2,Math.round(size/12));for(let i=0;i<lines.length;i++){const srcH=Math.max(1,Math.round(segH/scale));const srcX=0;const srcY=Math.max(0,img.height-srcH);const dstX=0;const dstY=yTop;const dstW=outW;const dstH=segH;drawSampledBackground(ctx,img,srcX,srcY,img.width,srcH,dstX,dstY,dstW,dstH,0,opt.boxBlur,opt.boxShade);const centerX=outW/2;const cy=dstY+segH/2;ctx.fillStyle=opt.textColor||"#ffffff";ctx.strokeText(lines[i],centerX,cy);ctx.fillText(lines[i],centerX,cy);yTop+=segH;if(opt.showDivider&&opt.dividerThickness>0&&i<lines.length-1){ctx.fillStyle="rgba(255,255,255,0.7)";ctx.fillRect(pad,yTop,outW-pad*2,opt.dividerThickness);yTop+=opt.dividerThickness}}return c}
     function makeCanvas(img,text,opt){const w=img.width;const percent=Math.max(12,Math.min(30,opt.barPercent));const barH=Math.round(img.height*percent/100);const pad=opt.padding;const baseSize=opt.fontSize;const family="system-ui, Arial";const h=img.height+barH;const c=document.createElement("canvas");c.width=w;c.height=h;const ctx=c.getContext("2d");ctx.imageSmoothingEnabled=true;ctx.drawImage(img,0,0,w,img.height);const overlayH=Math.max(barH,baseSize*2);const barY=img.height-overlayH;ctx.fillStyle="rgba(0,0,0,0.45)";ctx.fillRect(0,barY,w,overlayH);ctx.fillStyle="rgba(0,0,0,0.7)";ctx.fillRect(0,img.height,w,overlayH);const maxTextW=w-pad*2;const size=fitFont(ctx,text,maxTextW,baseSize,family);ctx.font=`${size}px ${family}`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillStyle="#ffffff";ctx.strokeStyle="rgba(0,0,0,0.85)";ctx.lineWidth=Math.max(2,Math.round(size/12));const centerX=w/2;const upperY=barY+overlayH/2;const lowerY=img.height+overlayH/2;ctx.strokeText(text,centerX,upperY);ctx.fillText(text,centerX,upperY);ctx.strokeText(text,centerX,lowerY);ctx.fillText(text,centerX,lowerY);return c}
     function cardForCanvas(c){const data=c.toDataURL("image/png");const wrap=document.createElement("div");wrap.className="card";const img=document.createElement("img");img.src=data;const acts=document.createElement("div");acts.className="actions";const a=document.createElement("a");a.href=data;a.download=`subtitle_${Date.now()}.png`;a.className="btn";a.textContent="下载PNG";acts.appendChild(a);wrap.appendChild(img);wrap.appendChild(acts);return wrap}
-    generateBtn.addEventListener("click",()=>{if(!loadedImage)return;const lines=normalizeLines(captionInput.value);results.innerHTML="";if(lines.length===0)return;const opt={fontSize:parseInt(fontSizeEl.value,10),barPercent:parseInt(barPercentEl.value,10),padding:parseInt(paddingEl.value,10),lineGap:parseInt(lineGapEl.value,10),dividerThickness:parseInt(dividerThickEl.value,10),showDivider:!!dividerShowEl.checked,boxRadius:parseInt(boxRadiusEl.value,10),boxBlur:parseInt(boxBlurEl.value,10),boxShade:parseInt(boxShadeEl.value,10),fixedSegEnable:!!fixedSegEnableEl.checked,fixedSegHeight:parseInt(fixedSegHeightEl.value,10),textColor:textColorEl.value,strokeColor:strokeColorEl.value,outWidth:parseInt(outWidthEl.value,10),wmText:wmTextEl.value,wmSize:parseInt(wmSizeEl.value,10),wmColor:wmColorEl.value,wmOpacity:parseInt(wmOpacityEl.value,10)};const c=makeCanvasCombined(loadedImage,lines,opt);results.appendChild(cardForCanvas(c))});
+    function stitchCanvases(canvases){
+      if(!canvases.length)return null;
+      const w=canvases[0].width;
+      let totalH=0;
+      for(const c of canvases)totalH+=c.height;
+      const out=document.createElement("canvas");
+      out.width=w;
+      out.height=totalH;
+      const ctx=out.getContext("2d");
+      let y=0;
+      for(const c of canvases){
+        ctx.drawImage(c,0,y);
+        y+=c.height;
+      }
+      return out;
+    }
+    generateBtn.addEventListener("click",()=>{
+      if(loadedFiles.length===0)return;
+      results.innerHTML="";
+      const textareas=imageList.querySelectorAll("textarea");
+      const opt={fontSize:parseInt(fontSizeEl.value,10),barPercent:parseInt(barPercentEl.value,10),padding:parseInt(paddingEl.value,10),lineGap:parseInt(lineGapEl.value,10),dividerThickness:parseInt(dividerThickEl.value,10),showDivider:!!dividerShowEl.checked,boxRadius:parseInt(boxRadiusEl.value,10),boxBlur:parseInt(boxBlurEl.value,10),boxShade:parseInt(boxShadeEl.value,10),fixedSegEnable:!!fixedSegEnableEl.checked,fixedSegHeight:parseInt(fixedSegHeightEl.value,10),textColor:textColorEl.value,strokeColor:strokeColorEl.value,outWidth:parseInt(outWidthEl.value,10),wmText:wmTextEl.value,wmSize:parseInt(wmSizeEl.value,10),wmColor:wmColorEl.value,wmOpacity:parseInt(wmOpacityEl.value,10)};
+      const partOpt={...opt,wmText:""};
+      const parts=[];
+      loadedFiles.forEach((item,i)=>{
+        const text=textareas[i]?textareas[i].value:"";
+        const lines=normalizeLines(text);
+        parts.push(makeCanvasCombined(item.img,lines,partOpt));
+      });
+      const finalC=stitchCanvases(parts);
+      if(finalC){
+        if(opt.wmText&&opt.wmText.trim()){
+          const ctx=finalC.getContext("2d");
+          ctx.save();
+          ctx.globalAlpha=Math.min(1,Math.max(0,opt.wmOpacity/100));
+          ctx.fillStyle=opt.wmColor||"#ffffff";
+          ctx.textAlign="right";
+          ctx.textBaseline="top";
+          ctx.font=`${opt.wmSize||32}px system-ui, Arial`;
+          const p=16;
+          ctx.fillText(opt.wmText.trim(),finalC.width-p,p);
+          ctx.restore();
+        }
+        results.appendChild(cardForCanvas(finalC));
+      }
+    });
   </script>
 </body>
 </html>
+
+
+// v2版本：可以上传多张照片进行拼接
